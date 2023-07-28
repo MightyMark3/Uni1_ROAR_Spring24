@@ -132,6 +132,7 @@ async def evaluate_solution(
     while True:
         current_time = world.last_tick_elapsed_seconds
         if current_time - start_time > max_seconds:
+            vehicle.close()
             return None
         await vehicle.receive_observation()
 
@@ -146,6 +147,7 @@ async def evaluate_solution(
         await world.step()
     
     end_time = world.last_tick_elapsed_seconds
+    vehicle.close()
     return {
         "elapsed_time" : end_time - start_time,
     }
@@ -162,7 +164,10 @@ async def main():
         RoarCompetitionSolution,
         max_seconds=1200
     )
-    print(evaluation_result)
+    if evaluation_result is not None:
+        print("Solution finished in {} seconds".format(evaluation_result["elapsed_time"]))
+    else:
+        print("Solution failed to finish in time")
 
 if __name__ == "__main__":
     asyncio.run(main())

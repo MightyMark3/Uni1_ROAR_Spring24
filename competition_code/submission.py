@@ -22,7 +22,7 @@ def filter_waypoints(location : np.ndarray, current_idx: int, waypoints : List[r
     return current_idx
 
 class RoarCompetitionSolution:
-    async def __init__(
+    def __init__(
         self,
         maneuverable_waypoints: List[roar_py_interface.RoarPyWaypoint],
         vehicle : roar_py_interface.RoarPyActor,
@@ -45,7 +45,7 @@ class RoarCompetitionSolution:
         # For example, you can compute the path to the first waypoint.
         self.manual_viewer = ManualControlViewer()
 
-        
+
     async def step(
         self
     ) -> None:
@@ -54,17 +54,24 @@ class RoarCompetitionSolution:
         You can do whatever you want here, including apply_action() to the vehicle.
         """
         # TODO: Implement your solution here.
-        vehicle_location = self.vehicle.get_3d_location()
-        vehicle_rotation = self.vehicle.get_roll_pitch_yaw()
 
+        # Receive location, rotation and velocity data 
+        vehicle_location_data = await self.location_sensor.receive_observation()
+        vehicle_location = np.array([vehicle_location_data.x, -vehicle_location_data.y, vehicle_location_data.z], dtype=np.float32)
+        vehicle_rotation_data = await self.rpy_sensor.receive_observation()
+        vehicle_rotation = np.deg2rad(vehicle_rotation_data.roll_pitch_yaw)
+        vehicle_velocity_data = await self.velocity_sensor.receive_observation()
+        vehicle_velocity = np.linalg.norm(vehicle_velocity_data.velocity)
         # Receive camera data and render it
-        camera_data = await self.camera.receive_observation()
+        camera_data = await self.camera_sensor.receive_observation()
         render_ret = self.manual_viewer.render(camera_data)
          # If user clicked the close button, render_ret will be None
         if render_ret is None:
             return
         
         way_points = self.maneuverable_waypoints
+        # Initialize current waypoint index to 10 since that's where we spawned the vehicle
+        current_waypoint_idx = 10
         # Find the waypoint closest to the vehicle
         current_waypoint_idx = filter_waypoints(
             vehicle_location,
@@ -83,12 +90,12 @@ class RoarCompetitionSolution:
 
         # Proportional controller to steer the vehicle towards the target waypoint
         steer_control = (
-            -8.0 / np.sqrt(np.linalg.norm(self.vehicle.get_linear_3d_velocity())) * delta_heading / np.pi
-        ) if np.linalg.norm(self.vehicle.get_linear_3d_velocity()) > 1e-2 else -np.sign(delta_heading)
+            -8.0 / np.sqrt(vehicle_velocity) * delta_heading / np.pi
+        ) if vehicle_velocity > 1e-2 else -np.sign(delta_heading)
         steer_control = np.clip(steer_control, -1.0, 1.0)
 
         # Proportional controller to control the vehicle's speed towards 40 m/s
-        throttle_control = 0.05 * (20 - np.linalg.norm(self.vehicle.get_linear_3d_velocity()))
+        throttle_control = 0.05 * (20 - vehicle_velocity)
 
         control = {
             "throttle": np.clip(throttle_control, 0.0, 1.0),

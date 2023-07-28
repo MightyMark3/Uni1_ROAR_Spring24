@@ -77,8 +77,8 @@ async def evaluate_solution(
     waypoints = world.maneuverable_waypoints
     vehicle = world.spawn_vehicle(
         "vehicle.dallara.dallara",
-        waypoints[0].location + 0.5,
-        waypoints[0].roll_pitch_yaw,
+        waypoints[10].location + np.array([0,0,1]),
+        waypoints[10].roll_pitch_yaw,
         True,
     )
     assert vehicle is not None
@@ -111,7 +111,7 @@ async def evaluate_solution(
     assert occupancy_map_sensor is not None
     assert collision_sensor is not None
 
-    solution : RoarCompetitionSolution = await solution_constructor(
+    solution : RoarCompetitionSolution = solution_constructor(
         waypoints,
         RoarCompetitionAgentWrapper(vehicle),
         camera,
@@ -135,8 +135,8 @@ async def evaluate_solution(
             vehicle.close()
             return None
         await vehicle.receive_observation()
-
-        if collision_sensor.get_last_observation().impulse_normal > 100.0:
+        collision_impulse_norm = np.linalg.norm(collision_sensor.get_last_observation().impulse_normal)
+        if collision_impulse_norm > 100.0:
             await rule.respawn()
         
         rule.tick()

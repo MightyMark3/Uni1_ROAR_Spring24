@@ -32,7 +32,7 @@ class RoarCompetitionRule:
         current_location = self.vehicle.get_3d_location()
         delta_vector = current_location - self._last_vehicle_location
         delta_vector_norm = np.linalg.norm(delta_vector)
-        delta_vector_unit = delta_vector / delta_vector_norm
+        delta_vector_unit = delta_vector / delta_vector_norm if delta_vector_norm < 1e-5 else np.zeros(3)
         for i,waypoint in enumerate(self.waypoints):
             waypoint_delta = waypoint.location - current_location
             projection = np.dot(waypoint_delta,delta_vector_unit)

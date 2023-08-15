@@ -26,7 +26,7 @@ class RoarCompetitionRule:
     ):
         return np.all(self.waypoint_occupancy)
 
-    def tick(
+    async def tick(
         self
     ):
         current_location = self.vehicle.get_3d_location()
@@ -128,8 +128,8 @@ async def evaluate_solution(
     )
     rule = RoarCompetitionRule(waypoints,vehicle,world)
 
-    # for i in range(20):
-    #     await world.step()
+    for i in range(20):
+        await world.step()
     
     # Timer starts here 
     start_time = world.last_tick_elapsed_seconds
@@ -138,8 +138,6 @@ async def evaluate_solution(
     await solution.initialize()
     
     while True:
-        await world.step()
-
         # terminate if time out
         current_time = world.last_tick_elapsed_seconds
         if current_time - start_time > max_seconds:
@@ -157,7 +155,7 @@ async def evaluate_solution(
             return None
             await rule.respawn()
         
-        rule.tick()
+        await rule.tick()
         if rule.lap_finished():
             break
         
@@ -183,8 +181,8 @@ async def main():
     carla_client.set_timeout(5.0)
     roar_py_instance = roar_py_carla.RoarPyCarlaInstance(carla_client)
     world = roar_py_instance.world
-    world.set_control_steps(0.0, 0.01)
-    world.set_asynchronous(True)
+    world.set_control_steps(0.05, 0.005)
+    world.set_asynchronous(False)
     evaluation_result = await evaluate_solution(
         world,
         RoarCompetitionSolution,

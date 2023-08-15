@@ -77,6 +77,7 @@ async def evaluate_solution(
     if enable_visualization:
         viewer = ManualControlViewer()
     
+    # Spawn vehicle and sensors to receive data
     waypoints = world.maneuverable_waypoints
     vehicle = world.spawn_vehicle(
         "vehicle.dallara.dallara",
@@ -114,6 +115,7 @@ async def evaluate_solution(
     assert occupancy_map_sensor is not None
     assert collision_sensor is not None
 
+    # Start to run solution 
     solution : RoarCompetitionSolution = solution_constructor(
         waypoints,
         RoarCompetitionAgentWrapper(vehicle),
@@ -126,23 +128,33 @@ async def evaluate_solution(
     )
     rule = RoarCompetitionRule(waypoints,vehicle,world)
 
-    for i in range(20):
-        await world.step()
+    # for i in range(20):
+    #     await world.step()
     
-    await vehicle.receive_observation()
-    await solution.initialize()
-
+    # Timer starts here 
     start_time = world.last_tick_elapsed_seconds
     current_time = start_time
+    await vehicle.receive_observation()
+    await solution.initialize()
     
     while True:
+        await world.step()
+
+        # terminate if time out
         current_time = world.last_tick_elapsed_seconds
         if current_time - start_time > max_seconds:
             vehicle.close()
             return None
+        
+        # receive sensors' data
         await vehicle.receive_observation()
+
+        # terminate if there is major collision
         collision_impulse_norm = np.linalg.norm(collision_sensor.get_last_observation().impulse_normal)
-        if collision_impulse_norm > 100.0:
+        if collision_impulse_norm > 10.0:
+            vehicle.close()
+            print(f"major collision of tensity {collision_impulse_norm}")
+            return None
             await rule.respawn()
         
         rule.tick()
@@ -151,6 +163,7 @@ async def evaluate_solution(
         
         if enable_visualization:
             if viewer.render(camera.get_last_observation()) is None:
+                vehicle.close()
                 return None
 
         await solution.step()
@@ -166,12 +179,12 @@ async def evaluate_solution(
     }
 
 async def main():
-    carla_client = carla.Client('localhost', 2000)
-    carla_client.set_timeout(10.0)
+    carla_client = carla.Client('127.0.0.1', 2000)
+    carla_client.set_timeout(5.0)
     roar_py_instance = roar_py_carla.RoarPyCarlaInstance(carla_client)
     world = roar_py_instance.world
-    world.set_control_steps(0.05, 0.005)
-    world.set_asynchronous(False)
+    world.set_control_steps(0.0, 0.01)
+    world.set_asynchronous(True)
     evaluation_result = await evaluate_solution(
         world,
         RoarCompetitionSolution,

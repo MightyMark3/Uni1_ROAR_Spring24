@@ -25,12 +25,12 @@ class RoarCompetitionSolution:
         self,
         maneuverable_waypoints: List[roar_py_interface.RoarPyWaypoint],
         vehicle : roar_py_interface.RoarPyActor,
-        camera_sensor : roar_py_interface.RoarPyCameraSensor,
-        location_sensor : roar_py_interface.RoarPyLocationInWorldSensor,
-        velocity_sensor : roar_py_interface.RoarPyVelocimeterSensor,
-        rpy_sensor : roar_py_interface.RoarPyRollPitchYawSensor,
-        occupancy_map_sensor : roar_py_interface.RoarPyOccupancyMapSensor,
-        collision_sensor : roar_py_interface.RoarPyCollisionSensor,
+        camera_sensor : roar_py_interface.RoarPyCameraSensor = None,
+        location_sensor : roar_py_interface.RoarPyLocationInWorldSensor = None,
+        velocity_sensor : roar_py_interface.RoarPyVelocimeterSensor = None,
+        rpy_sensor : roar_py_interface.RoarPyRollPitchYawSensor = None,
+        occupancy_map_sensor : roar_py_interface.RoarPyOccupancyMapSensor = None,
+        collision_sensor : roar_py_interface.RoarPyCollisionSensor = None,
     ) -> None:
         self.maneuverable_waypoints = maneuverable_waypoints
         self.vehicle = vehicle
@@ -108,3 +108,4 @@ class RoarCompetitionSolution:
             "target_gear": 0
         }
         await self.vehicle.apply_action(control)
+        return control

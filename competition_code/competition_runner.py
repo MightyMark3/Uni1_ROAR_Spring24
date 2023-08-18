@@ -20,7 +20,23 @@ class RoarCompetitionRule:
         self.vehicle = vehicle
         self.world = world
         self._last_vehicle_location = vehicle.get_3d_location()
-    
+        
+
+
+    def initialize_race(self):
+        self._last_vehicle_location = self.vehicle.get_3d_location()
+        vehicle_location = self._last_vehicle_location
+        closest_waypoint_dist = np.inf
+        closest_waypoint_idx = 0
+        for i,waypoint in enumerate(self.waypoints):
+            waypoint_dist = np.linalg.norm(vehicle_location - waypoint.location)
+            if waypoint_dist < closest_waypoint_dist:
+                closest_waypoint_dist = waypoint_dist
+                closest_waypoint_idx = i
+        self.waypoints = self.waypoints[closest_waypoint_idx+1:] + self.waypoints[:closest_waypoint_idx+1]
+        self.furthest_waypoints_index = 0
+
+
     def lap_finished(
         self
     ):
@@ -29,18 +45,27 @@ class RoarCompetitionRule:
     async def tick(
         self
     ):
+        
         current_location = self.vehicle.get_3d_location()
         delta_vector = current_location - self._last_vehicle_location
         delta_vector_norm = np.linalg.norm(delta_vector)
         delta_vector_unit = (delta_vector / delta_vector_norm) if delta_vector_norm < 1e-5 else np.zeros(3)
-        for i,waypoint in enumerate(self.waypoints):
+        found_next = False
+        new_furthest_index = -1
+        for i,waypoint in enumerate(self.waypoints[self.furthest_waypoints_index:]):
             waypoint_delta = waypoint.location - current_location
             projection = np.dot(waypoint_delta,delta_vector_unit)
             projection = np.clip(projection,0,delta_vector_norm)
             closest_point_on_segment = current_location + projection * delta_vector_unit
             distance = np.linalg.norm(waypoint.location - closest_point_on_segment)
             if distance < 1.0:
-                self.waypoint_occupancy[i] = True
+                found_next = True
+                new_furthest_index = i
+            else:
+                if found_next:
+                    break
+        print(f"reach waypoints {new_furthest_index} at {self.waypoints[new_furthest_index].location}")
+        self.furthest_waypoints_index = new_furthest_index
         self._last_vehicle_location = current_location
     
     async def respawn(
@@ -80,7 +105,7 @@ async def evaluate_solution(
     # Spawn vehicle and sensors to receive data
     waypoints = world.maneuverable_waypoints
     vehicle = world.spawn_vehicle(
-        "vehicle.dallara.dallara",
+        "vehicle.audi.a2",
         waypoints[10].location + np.array([0,0,1]),
         waypoints[10].roll_pitch_yaw,
         True,
@@ -115,6 +140,7 @@ async def evaluate_solution(
     assert occupancy_map_sensor is not None
     assert collision_sensor is not None
 
+
     # Start to run solution 
     solution : RoarCompetitionSolution = solution_constructor(
         waypoints,
@@ -128,14 +154,17 @@ async def evaluate_solution(
     )
     rule = RoarCompetitionRule(waypoints,vehicle,world)
 
-    for i in range(20):
+    for _ in range(20):
         await world.step()
     
+    rule.initialize_race()
+
     # Timer starts here 
     start_time = world.last_tick_elapsed_seconds
     current_time = start_time
     await vehicle.receive_observation()
     await solution.initialize()
+
     
     while True:
         # terminate if time out

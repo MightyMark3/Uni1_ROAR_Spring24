@@ -35,38 +35,42 @@ class RoarCompetitionRule:
                 closest_waypoint_idx = i
         self.waypoints = self.waypoints[closest_waypoint_idx+1:] + self.waypoints[:closest_waypoint_idx+1]
         self.furthest_waypoints_index = 0
+        print(f"total length: {len(self.waypoints)}")
+        # print(self.waypoints[1200:1210])
 
 
     def lap_finished(
         self
     ):
-        return np.all(self.waypoint_occupancy)
+        return self.furthest_waypoints_index >= len(self.waypoints)
+        #return np.all(self.waypoint_occupancy)
 
     async def tick(
         self
     ):
-        
         current_location = self.vehicle.get_3d_location()
         delta_vector = current_location - self._last_vehicle_location
         delta_vector_norm = np.linalg.norm(delta_vector)
-        delta_vector_unit = (delta_vector / delta_vector_norm) if delta_vector_norm < 1e-5 else np.zeros(3)
+        delta_vector_unit = (delta_vector / delta_vector_norm) if delta_vector_norm >= 1e-5 else np.zeros(3)
         found_next = False
-        new_furthest_index = -1
-        for i,waypoint in enumerate(self.waypoints[self.furthest_waypoints_index:]):
+        previous_furthest_index = self.furthest_waypoints_index
+        new_furthest_index = self.furthest_waypoints_index
+        for i,waypoint in enumerate(self.waypoints[previous_furthest_index:previous_furthest_index + 5]):
             waypoint_delta = waypoint.location - current_location
             projection = np.dot(waypoint_delta,delta_vector_unit)
             projection = np.clip(projection,0,delta_vector_norm)
             closest_point_on_segment = current_location + projection * delta_vector_unit
             distance = np.linalg.norm(waypoint.location - closest_point_on_segment)
-            if distance < 1.0:
+            if distance < 4.0:
                 found_next = True
-                new_furthest_index = i
+                new_furthest_index += i 
             else:
                 if found_next:
                     break
-        print(f"reach waypoints {new_furthest_index} at {self.waypoints[new_furthest_index].location}")
         self.furthest_waypoints_index = new_furthest_index
         self._last_vehicle_location = current_location
+        print(f"reach waypoints {self.furthest_waypoints_index} at {self.waypoints[self.furthest_waypoints_index].location}")
+
     
     async def respawn(
         self
@@ -96,7 +100,7 @@ class RoarCompetitionRule:
 async def evaluate_solution(
     world : roar_py_carla.RoarPyCarlaWorld,
     solution_constructor : Type[RoarCompetitionSolution],
-    max_seconds = 1200,
+    max_seconds = 12000,
     enable_visualization : bool = False,
 ) -> Optional[Dict[str, Any]]:
     if enable_visualization:
@@ -158,6 +162,8 @@ async def evaluate_solution(
         await world.step()
     
     rule.initialize_race()
+    # vehicle.close()
+    # exit()
 
     # Timer starts here 
     start_time = world.last_tick_elapsed_seconds
@@ -178,10 +184,10 @@ async def evaluate_solution(
 
         # terminate if there is major collision
         collision_impulse_norm = np.linalg.norm(collision_sensor.get_last_observation().impulse_normal)
-        if collision_impulse_norm > 10.0:
-            vehicle.close()
+        if collision_impulse_norm > 100.0:
+            # vehicle.close()
             print(f"major collision of tensity {collision_impulse_norm}")
-            return None
+            # return None
             await rule.respawn()
         
         await rule.tick()

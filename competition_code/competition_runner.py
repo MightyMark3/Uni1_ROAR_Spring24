@@ -40,34 +40,48 @@ class RoarCompetitionRule:
 
 
     def lap_finished(
-        self
+        self, 
+        check_step = 5
     ):
-        return self.furthest_waypoints_index >= len(self.waypoints)
+        # print(len(self.waypoints))
+        return self.furthest_waypoints_index + check_step >= len(self.waypoints)
         #return np.all(self.waypoint_occupancy)
 
     async def tick(
-        self
+        self, 
+        check_step = 5
     ):
         current_location = self.vehicle.get_3d_location()
+        #print(f"current location at : {current_location}")
         delta_vector = current_location - self._last_vehicle_location
         delta_vector_norm = np.linalg.norm(delta_vector)
         delta_vector_unit = (delta_vector / delta_vector_norm) if delta_vector_norm >= 1e-5 else np.zeros(3)
         found_next = False
         previous_furthest_index = self.furthest_waypoints_index
         new_furthest_index = self.furthest_waypoints_index
-        for i,waypoint in enumerate(self.waypoints[previous_furthest_index:previous_furthest_index + 5]):
+        advanced_index = 0
+        min_dis = 10000
+        min_index = 0
+        #print(f"Previous furthest index {previous_furthest_index}")
+        endind_index = previous_furthest_index + check_step if (previous_furthest_index + check_step <= len(self.waypoints)) else len(self.waypoints)
+        for i,waypoint in enumerate(self.waypoints[previous_furthest_index:endind_index]):
             waypoint_delta = waypoint.location - current_location
             projection = np.dot(waypoint_delta,delta_vector_unit)
             projection = np.clip(projection,0,delta_vector_norm)
             closest_point_on_segment = current_location + projection * delta_vector_unit
             distance = np.linalg.norm(waypoint.location - closest_point_on_segment)
-            if distance < 4.0:
-                found_next = True
-                new_furthest_index += i 
-            else:
-                if found_next:
-                    break
-        self.furthest_waypoints_index = new_furthest_index
+            #print(f"looking forward index {i}, distance {distance}")
+            if distance < min_dis:
+                min_dis = distance
+                min_index = i
+            # if distance < 5.0:
+            #     found_next = True
+            #     advanced_index = i
+            # else:
+            #     if found_next:
+            #         break
+        
+        self.furthest_waypoints_index += min_index #= new_furthest_index
         self._last_vehicle_location = current_location
         print(f"reach waypoints {self.furthest_waypoints_index} at {self.waypoints[self.furthest_waypoints_index].location}")
 
@@ -110,12 +124,11 @@ async def evaluate_solution(
     waypoints = world.maneuverable_waypoints
     vehicle = world.spawn_vehicle(
         "vehicle.audi.a2",
-        waypoints[10].location + np.array([0,0,1]),
-        waypoints[10].roll_pitch_yaw,
+        waypoints[0].location + np.array([0,0,1]),
+        waypoints[0].roll_pitch_yaw,
         True,
     )
     assert vehicle is not None
-
     camera = vehicle.attach_camera_sensor(
         roar_py_interface.RoarPyCameraSensorDataRGB,
         np.array([-2.0 * vehicle.bounding_box.extent[0], 0.0, 3.0 * vehicle.bounding_box.extent[2]]), # relative position
@@ -202,6 +215,7 @@ async def evaluate_solution(
         await solution.step()
         await world.step()
     
+    print("end of the loop")
     end_time = world.last_tick_elapsed_seconds
     vehicle.close()
     if enable_visualization:
@@ -221,7 +235,7 @@ async def main():
     evaluation_result = await evaluate_solution(
         world,
         RoarCompetitionSolution,
-        max_seconds=1200,
+        max_seconds=5000,
         enable_visualization=True
     )
     if evaluation_result is not None:

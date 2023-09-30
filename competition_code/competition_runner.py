@@ -16,12 +16,12 @@ class RoarCompetitionRule:
         world: roar_py_carla.RoarPyCarlaWorld
     ) -> None:
         self.waypoints = waypoints
-        self.waypoint_occupancy = np.zeros(len(waypoints),dtype=np.bool_)
+        # self.waypoint_occupancy = np.zeros(len(waypoints),dtype=np.bool_)
         self.vehicle = vehicle
         self.world = world
         self._last_vehicle_location = vehicle.get_3d_location()
-        
-
+        self._respawn_location = None
+        self._respawn_rpy = None
 
     def initialize_race(self):
         self._last_vehicle_location = self.vehicle.get_3d_location()
@@ -36,6 +36,8 @@ class RoarCompetitionRule:
         self.waypoints = self.waypoints[closest_waypoint_idx+1:] + self.waypoints[:closest_waypoint_idx+1]
         self.furthest_waypoints_index = 0
         print(f"total length: {len(self.waypoints)}")
+        self._respawn_location = self._last_vehicle_location.copy()
+        self._respawn_rpy = self.vehicle.get_roll_pitch_yaw().copy()
         # print(self.waypoints[1200:1210])
 
 
@@ -49,7 +51,7 @@ class RoarCompetitionRule:
 
     async def tick(
         self, 
-        check_step = 5
+        check_step = 15
     ):
         current_location = self.vehicle.get_3d_location()
         #print(f"current location at : {current_location}")
@@ -81,20 +83,23 @@ class RoarCompetitionRule:
     async def respawn(
         self
     ):
-        vehicle_location = self.vehicle.get_3d_location()
-    
-        closest_waypoint_dist = np.inf
-        closest_waypoint_idx = 0
-        for i,waypoint in enumerate(self.waypoints):
-            waypoint_dist = np.linalg.norm(vehicle_location - waypoint.location)
-            if waypoint_dist < closest_waypoint_dist:
-                closest_waypoint_dist = waypoint_dist
-                closest_waypoint_idx = i
-        closest_waypoint = self.waypoints[closest_waypoint_idx]
-        closest_waypoint_location = closest_waypoint.location
-        closest_waypoint_rpy = closest_waypoint.roll_pitch_yaw
+        # vehicle_location = self.vehicle.get_3d_location()
+        # 
+        # closest_waypoint_dist = np.inf
+        # closest_waypoint_idx = 0
+        # for i,waypoint in enumerate(self.waypoints):
+        #     waypoint_dist = np.linalg.norm(vehicle_location - waypoint.location)
+        #     if waypoint_dist < closest_waypoint_dist:
+        #         closest_waypoint_dist = waypoint_dist
+        #         closest_waypoint_idx = i
+        # closest_waypoint = self.waypoints[closest_waypoint_idx]
+        # closest_waypoint_location = closest_waypoint.location
+        # closest_waypoint_rpy = closest_waypoint.roll_pitch_yaw
+        # self.vehicle.set_transform(
+        #     closest_waypoint_location + self.vehicle.bounding_box.extent[2] + 0.2, closest_waypoint_rpy
+        # )
         self.vehicle.set_transform(
-            closest_waypoint_location + self.vehicle.bounding_box.extent[2] + 0.2, closest_waypoint_rpy
+            self._respawn_location, self._respawn_rpy
         )
         self.vehicle.set_linear_3d_velocity(np.zeros(3))
         self.vehicle.set_angular_velocity(np.zeros(3))
@@ -102,6 +107,7 @@ class RoarCompetitionRule:
             await self.world.step()
         
         self._last_vehicle_location = self.vehicle.get_3d_location()
+        self.furthest_waypoints_index = 0
 
 async def evaluate_solution(
     world : roar_py_carla.RoarPyCarlaWorld,
@@ -115,7 +121,7 @@ async def evaluate_solution(
     # Spawn vehicle and sensors to receive data
     waypoints = world.maneuverable_waypoints
     vehicle = world.spawn_vehicle(
-        "vehicle.audi.a2",
+        "vehicle.tesla.model3",
         waypoints[0].location + np.array([0,0,1]),
         waypoints[0].roll_pitch_yaw,
         True,
@@ -161,7 +167,7 @@ async def evaluate_solution(
         occupancy_map_sensor,
         collision_sensor
     )
-    rule = RoarCompetitionRule(waypoints,vehicle,world)
+    rule = RoarCompetitionRule(waypoints * 3,vehicle,world) # 3 laps
 
     for _ in range(20):
         await world.step()

@@ -56,11 +56,9 @@ class RoarCompetitionRule:
         delta_vector = current_location - self._last_vehicle_location
         delta_vector_norm = np.linalg.norm(delta_vector)
         delta_vector_unit = (delta_vector / delta_vector_norm) if delta_vector_norm >= 1e-5 else np.zeros(3)
-        found_next = False
+
         previous_furthest_index = self.furthest_waypoints_index
-        new_furthest_index = self.furthest_waypoints_index
-        advanced_index = 0
-        min_dis = 10000
+        min_dis = np.inf
         min_index = 0
         #print(f"Previous furthest index {previous_furthest_index}")
         endind_index = previous_furthest_index + check_step if (previous_furthest_index + check_step <= len(self.waypoints)) else len(self.waypoints)
@@ -74,12 +72,6 @@ class RoarCompetitionRule:
             if distance < min_dis:
                 min_dis = distance
                 min_index = i
-            # if distance < 5.0:
-            #     found_next = True
-            #     advanced_index = i
-            # else:
-            #     if found_next:
-            #         break
         
         self.furthest_waypoints_index += min_index #= new_furthest_index
         self._last_vehicle_location = current_location
@@ -195,6 +187,8 @@ async def evaluate_solution(
         # receive sensors' data
         await vehicle.receive_observation()
 
+        await rule.tick()
+
         # terminate if there is major collision
         collision_impulse_norm = np.linalg.norm(collision_sensor.get_last_observation().impulse_normal)
         if collision_impulse_norm > 100.0:
@@ -203,7 +197,6 @@ async def evaluate_solution(
             # return None
             await rule.respawn()
         
-        await rule.tick()
         if rule.lap_finished():
             break
         

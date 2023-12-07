@@ -40,6 +40,10 @@ class RoarCompetitionSolution:
         collision_sensor : roar_py_interface.RoarPyCollisionSensor = None,
     ) -> None:
         self.maneuverable_waypoints = maneuverable_waypoints
+        # self.maneuverable_waypoints = self.modified_points(maneuverable_waypoints)
+        # self.maneuverable_waypoints[1964] = self.new_point(self.maneuverable_waypoints[1964], -1044.4)
+        # self.maneuverable_waypoints[1965] = self.new_point(self.maneuverable_waypoints[1965], -1045.8)
+        # self.maneuverable_waypoints[1966] = self.new_point(self.maneuverable_waypoints[1966], -1047.0)
         self.vehicle = vehicle
         self.camera_sensor = camera_sensor
         self.location_sensor = location_sensor
@@ -54,7 +58,27 @@ class RoarCompetitionSolution:
         self.section_start_ticks = 0
         self.current_section = -1
     
-    
+
+    def modified_points(self, waypoints):
+        new_points = []
+        for ind, waypoint in enumerate(waypoints):
+            if ind >= 1946 and ind <= 1995:
+                new_points.append(self.new_point(waypoint, self.new_y(waypoint.location[0])))
+            else:
+                new_points.append(waypoint)
+        return new_points
+
+    def new_point(self, waypoint, new_y):
+        new_location = np.array([waypoint.location[0], new_y, waypoint.location[2]])
+        return roar_py_interface.RoarPyWaypoint(location=new_location, 
+                                                roll_pitch_yaw=waypoint.roll_pitch_yaw, 
+                                                lane_width=waypoint.lane_width)
+    def new_y(self, x):
+        a=0.000322627
+        b=2.73377
+        y = a * ( (abs(x + 206))**b ) - 1063.5
+        return y
+
     async def initialize(self) -> None:
         num_sections = 10
         indexes_per_section = len(self.maneuverable_waypoints) // num_sections
@@ -240,8 +264,7 @@ class RoarCompetitionSolution:
 
     # The idea and code for averaging points is from smooth_waypoint_following_local_planner.py
     def next_waypoint_smooth(self, current_speed: float):
-        if current_speed > 70 and current_speed < 300 and self.current_section != 6 and self.current_section != 7:
-            # target_waypoint = self.average_point(self.get_lookahead_value(current_speed))
+        if current_speed > 70 and current_speed < 300:
             target_waypoint = self.average_point(current_speed)
         else:
             new_waypoint_index = self.get_lookahead_index(current_speed)
@@ -253,12 +276,10 @@ class RoarCompetitionSolution:
         lookahead_value = self.get_lookahead_value(current_speed)
         start_index_for_avg = (next_waypoint_index - (lookahead_value // 2)) % len(self.maneuverable_waypoints)
         num_points = lookahead_value * 2
-        if self.current_section == 0 or self.current_section == 9:
+        if self.current_section in [0, 9]:
             num_points = lookahead_value
-        if self.current_section == 7 or self.current_section == 8:
+        if self.current_section in [6, 7, 8]:
             num_points = lookahead_value // 2
-        # start_index_for_avg = (next_waypoint_index - (lookahead_value // 4)) % len(self.maneuverable_waypoints)
-        # num_points = lookahead_value // 2
 
         next_waypoint = self.maneuverable_waypoints[next_waypoint_index]
         next_location = next_waypoint.location
@@ -271,10 +292,10 @@ class RoarCompetitionSolution:
             new_location = location_sum / num_points
             shift_distance = np.linalg.norm(next_location - new_location)
             max_shift_distance = 4.0
-            if self.current_section == 1:
-                max_shift_distance = 2.9
             if self.current_section == 0:
                 max_shift_distance = 1.5
+            if self.current_section == 1:
+                max_shift_distance = 1.9
             while shift_distance > max_shift_distance:
                 new_location = (new_location + next_location) / 2
                 shift_distance = np.linalg.norm(next_location - new_location)
@@ -634,6 +655,8 @@ class ThrottleController():
             mu = 1.6
         if current_section == 6:
             mu = 1.1
+        if current_section == 7:
+            mu = 2.2
         if current_section == 9:
             mu = 1.7
         target_speed = math.sqrt(mu*9.81*radius) * 3.6

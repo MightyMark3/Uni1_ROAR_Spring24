@@ -249,12 +249,12 @@ class RoarCompetitionSolution:
     def average_point(self, current_speed):
         next_waypoint_index = self.get_lookahead_index(current_speed)
         lookahead_value = self.get_lookahead_value(current_speed)
-        start_index_for_avg = (next_waypoint_index - (lookahead_value // 2)) % len(self.maneuverable_waypoints)
         num_points = lookahead_value * 2
-        if self.current_section in [0, 9]:
+        if self.current_section in [0]:
             num_points = lookahead_value
-        if self.current_section in [6, 7, 8]:
+        if self.current_section in [6, 7, 8, 9]:
             num_points = lookahead_value // 2
+        start_index_for_avg = (next_waypoint_index - (num_points // 2)) % len(self.maneuverable_waypoints)
 
         next_waypoint = self.maneuverable_waypoints[next_waypoint_index]
         next_location = next_waypoint.location
@@ -276,6 +276,12 @@ class RoarCompetitionSolution:
             target_waypoint = roar_py_interface.RoarPyWaypoint(location=new_location, 
                                                                roll_pitch_yaw=np.ndarray([0, 0, 0]), 
                                                                lane_width=0.0)
+            # if next_waypoint_index > 1900 and next_waypoint_index < 2300:
+            #   print("AVG: next_ind:" + str(next_waypoint_index) + " next_loc: " + str(next_location) 
+            #       + " new_loc: " + str(new_location) + " shift:" + str(shift_distance)
+            #       + " num_points: " + str(num_points) + " start_ind:" + str(start_index_for_avg)
+            #       + " curr_speed: " + str(current_speed))
+
         else:
             target_waypoint =  self.maneuverable_waypoints[next_waypoint_index]
 
@@ -629,7 +635,7 @@ class ThrottleController():
         if current_section == 6:
             mu = 1.1
         if current_section == 9:
-            mu = 1.7
+            mu = 1.5
         target_speed = math.sqrt(mu*9.81*radius) * 3.6
         return max(20, min(target_speed, self.max_speed))  # clamp between 20 and max_speed
 

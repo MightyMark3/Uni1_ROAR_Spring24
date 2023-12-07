@@ -40,6 +40,9 @@ class RoarCompetitionSolution:
         collision_sensor : roar_py_interface.RoarPyCollisionSensor = None,
     ) -> None:
         self.maneuverable_waypoints = maneuverable_waypoints
+        # self.maneuverable_waypoints[1964] = self.new_point(self.maneuverable_waypoints[1964], -1044.53) # \left(-150.065,-1044.53\right)
+        # self.maneuverable_waypoints[1965] = self.new_point(self.maneuverable_waypoints[1965], -1045.8) # (-151.912, -1045.8
+        # self.maneuverable_waypoints[1966] = self.new_point(self.maneuverable_waypoints[1966], -1047.0) #\left(-153.563,\ -1047\right)
         self.vehicle = vehicle
         self.camera_sensor = camera_sensor
         self.location_sensor = location_sensor
@@ -54,6 +57,15 @@ class RoarCompetitionSolution:
         self.section_start_ticks = 0
         self.current_section = -1
 
+    def new_point(self, waypoint, new_y):
+        new_location = np.array([
+           waypoint.location[0], 
+           new_y, 
+           waypoint.location[2]], dtype=float)
+        return roar_py_interface.RoarPyWaypoint(location=new_location, 
+                                                roll_pitch_yaw=waypoint.roll_pitch_yaw, 
+                                                lane_width=waypoint.lane_width)
+    
     async def initialize(self) -> None:
         num_sections = 10
         indexes_per_section = len(self.maneuverable_waypoints) // num_sections
@@ -109,7 +121,16 @@ class RoarCompetitionSolution:
                 print(f"Section {i}: {elapsed_ticks}")
 
         new_waypoint_index = self.get_lookahead_index(current_speed_kmh)
+        # waypoint_to_follow = self.maneuverable_waypoints[new_waypoint_index]
+        # TODO: try smooth
         waypoint_to_follow = self.next_waypoint_smooth(current_speed_kmh)
+
+        # # Calculate delta vector towards the target waypoint
+        # vector_to_waypoint = (waypoint_to_follow.location - vehicle_location)[:2]
+        # heading_to_waypoint = np.arctan2(vector_to_waypoint[1],vector_to_waypoint[0])
+
+        # # Calculate delta angle towards the target waypoint
+        # delta_heading = normalize_rad(heading_to_waypoint - vehicle_rotation[2])
 
         # Proportional controller to steer the vehicle
         steer_control = self.lat_pid_controller.run(
@@ -230,7 +251,8 @@ class RoarCompetitionSolution:
 
     # The idea and code for averaging points is from smooth_waypoint_following_local_planner.py
     def next_waypoint_smooth(self, current_speed: float):
-        if current_speed > 70 and current_speed < 300:
+        if current_speed > 70 and current_speed < 300 and self.current_section != 6 and self.current_section != 7:
+            # target_waypoint = self.average_point(self.get_lookahead_value(current_speed))
             target_waypoint = self.average_point(current_speed)
         else:
             new_waypoint_index = self.get_lookahead_index(current_speed)
@@ -240,12 +262,15 @@ class RoarCompetitionSolution:
     def average_point(self, current_speed):
         next_waypoint_index = self.get_lookahead_index(current_speed)
         lookahead_value = self.get_lookahead_value(current_speed)
+        #start_index_for_avg = (next_waypoint_index - (lookahead_value // 2)) % len(self.maneuverable_waypoints)
         num_points = lookahead_value * 2
-        if self.current_section in [0]:
+        if self.current_section == 0 or self.current_section == 9:
             num_points = lookahead_value
-        if self.current_section in [6, 7, 8, 9]:
+        if self.current_section == 7 or self.current_section == 8:
             num_points = lookahead_value // 2
         start_index_for_avg = (next_waypoint_index - (num_points // 2)) % len(self.maneuverable_waypoints)
+        # start_index_for_avg = (next_waypoint_index - (lookahead_value // 4)) % len(self.maneuverable_waypoints)
+        # num_points = lookahead_value // 2
 
         next_waypoint = self.maneuverable_waypoints[next_waypoint_index]
         next_location = next_waypoint.location
@@ -257,22 +282,18 @@ class RoarCompetitionSolution:
             num_points = len(sample_points)
             new_location = location_sum / num_points
             shift_distance = np.linalg.norm(next_location - new_location)
-            max_shift_distance = 2.0
+            max_shift_distance = 4.0
             if self.current_section == 1:
-                max_shift_distance = 0.2
-            if shift_distance > max_shift_distance:
-                uv = (new_location - next_location) / shift_distance
-                new_location = next_location + uv*max_shift_distance
+                max_shift_distance = 2.9
+            if self.current_section == 0:
+                max_shift_distance = 1.5
+            while shift_distance > max_shift_distance:
+                new_location = (new_location + next_location) / 2
+                shift_distance = np.linalg.norm(next_location - new_location)
 
             target_waypoint = roar_py_interface.RoarPyWaypoint(location=new_location, 
                                                                roll_pitch_yaw=np.ndarray([0, 0, 0]), 
                                                                lane_width=0.0)
-            # if next_waypoint_index > 1900 and next_waypoint_index < 2300:
-            #   print("AVG: next_ind:" + str(next_waypoint_index) + " next_loc: " + str(next_location) 
-            #       + " new_loc: " + str(new_location) + " shift:" + str(shift_distance)
-            #       + " num_points: " + str(num_points) + " start_ind:" + str(start_index_for_avg)
-            #       + " curr_speed: " + str(current_speed))
-
         else:
             target_waypoint =  self.maneuverable_waypoints[next_waypoint_index]
 
@@ -520,22 +541,44 @@ class ThrottleController():
         percent_speed_change = (current_speed - self.previous_speed) / (self.previous_speed + 0.0001) # avoid division by zero
         return percent_speed_change < (-percent_change_per_tick / 2)
 
-    # find speed_data with smallest recommended speed
+    # find speed_data with smallest recommended speed (same as the largest speed excess [current > recommended])
+    # TODO: change to look for smallest recommended speed.
     def select_speed(self, speed_data: [SpeedData]):
-        min_speed = 1000
-        index_of_min_speed = -1
+        largest_diff = -300
+        index_of_largest_diff = -1
         for i, sd in enumerate(speed_data):
-            if sd.recommended_speed_now < min_speed:
-                min_speed = sd.recommended_speed_now
-                index_of_min_speed = i
+            if sd.speed_diff > largest_diff:
+                largest_diff = sd.speed_diff
+                index_of_largest_diff = i
 
-        if index_of_min_speed != -1:
-            return speed_data[index_of_min_speed]
+        if index_of_largest_diff != -1:
+            return speed_data[index_of_largest_diff]
         else:
             return speed_data[0]
     
-    def get_throttle_to_maintain_speed(self, current_speed: float):
+    def get_throttle_to_maintain_speed(self, current_speed: float, pitch_ahead: float = 0):
+        # TODO: commpute throttle needed to maintain current speed with given pitch.
+        #       need to consider current_speed
         throttle = 0.6 + current_speed/1000
+        if pitch_ahead < math.radians(-4):
+            throttle *= 0.95
+        if pitch_ahead < math.radians(-6):
+            throttle *= 0.95
+        if pitch_ahead < math.radians(-8):
+            throttle *= 0.93
+        if pitch_ahead < math.radians(-10):
+            throttle *= 0.92
+        if pitch_ahead < math.radians(-11):
+            throttle *= 0.92
+
+        if pitch_ahead > math.radians(2):
+            throttle *= 1.03
+        if pitch_ahead < math.radians(3):
+            throttle *= 1.03
+        if pitch_ahead < math.radians(4):
+            throttle *= 1.03
+        if pitch_ahead < math.radians(5):
+            throttle *= 1.03
         return throttle
 
     def speed_for_turn(self, distance: float, target_speed: float, current_speed: float):
@@ -604,7 +647,7 @@ class ThrottleController():
         if current_section == 6:
             mu = 1.1
         if current_section == 9:
-            mu = 1.5
+            mu = 1.7
         target_speed = math.sqrt(mu*9.81*radius) * 3.6
         return max(20, min(target_speed, self.max_speed))  # clamp between 20 and max_speed
 

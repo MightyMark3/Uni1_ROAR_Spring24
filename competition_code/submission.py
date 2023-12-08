@@ -129,6 +129,15 @@ class RoarCompetitionSolution:
             "reverse": 0,
             "target_gear": gear
         }
+
+        # print("--- " + str(throttle) + " " + str(brake) 
+        #             + " steer " + str(steer_control)
+        #             + " loc: " + str(vehicle_location)
+        #             + " cur_ind: " + str(self.current_waypoint_idx)
+        #             + " cur_sec: " + str(self.current_section)
+        #             ) 
+
+
         await self.vehicle.apply_action(control)
         return control
 
@@ -598,11 +607,11 @@ class ThrottleController():
     def get_target_speed(self, radius: float, current_section):
         if radius >= self.max_radius:
             return self.max_speed
-        mu = 1.8
-        if current_section == 0:
-            mu = 1.6
+        mu = 2.0
         if current_section == 6:
             mu = 1.1
+        if current_section == 7:
+            mu = 1.5
         if current_section == 9:
             mu = 1.5
         target_speed = math.sqrt(mu*9.81*radius) * 3.6

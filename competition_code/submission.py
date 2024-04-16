@@ -55,9 +55,10 @@ class RoarCompetitionSolution:
         self.current_section = -1
 
     async def initialize(self) -> None:
-        num_sections = 10
-        indexes_per_section = len(self.maneuverable_waypoints) // num_sections
-        self.section_indeces = [indexes_per_section * i for i in range(0, num_sections)]
+        num_sections = 12
+        #indexes_per_section = len(self.maneuverable_waypoints) // num_sections
+        #self.section_indeces = [indexes_per_section * i for i in range(0, num_sections)]
+        self.section_indeces = [198, 438, 547, 691, 803, 884, 1287, 1508, 1854, 1968, 2264, 2662, 2770]
         print(f"1 lap length: {len(self.maneuverable_waypoints)}")
         print(f"indexes: {self.section_indeces}")
 
@@ -250,9 +251,10 @@ class RoarCompetitionSolution:
         next_waypoint_index = self.get_lookahead_index(current_speed)
         lookahead_value = self.get_lookahead_value(current_speed)
         num_points = lookahead_value * 2
-        if self.current_section in [0]:
+        
+        if self.current_section <= 4:
             num_points = lookahead_value
-        if self.current_section in [6, 7, 8, 9]:
+        if self.current_section >= 6:
             num_points = lookahead_value // 2
         start_index_for_avg = (next_waypoint_index - (num_points // 2)) % len(self.maneuverable_waypoints)
 
@@ -607,13 +609,42 @@ class ThrottleController():
     def get_target_speed(self, radius: float, current_section):
         if radius >= self.max_radius:
             return self.max_speed
-        mu = 2.0
+        #self.section_indeces = [198, 438, 547, 691, 803, 884, 1287, 1508, 1854, 1968, 2264, 2662, 2770]
+        #old section indeces = [0, 277, 554, 831, 1108, 1662, 1939, 2216, 2493]
+        mu = 1.0 #TODO: set mu for each section
+        if current_section == 0:
+            mu = 2.0
+        if current_section == 1:
+            mu = 2.0
+        if current_section == 2:
+            mu = 2.0
+        if current_section == 3:
+            mu = 2.0
+        if current_section == 4:
+            mu = 2.0
+        if current_section == 5:
+            mu = 2.0
+        if current_section == 6:
+            mu = 2.0
+        if current_section == 7:
+            mu = 1.3
+        if current_section == 8:
+            mu = 1.2
+        if current_section == 9:
+            mu = 1.5
+        if current_section == 10:
+            mu = 2.0
+        if current_section == 11:
+            mu = 1.5
+        if current_section == 12:
+            mu = 1.2
+        '''old friction coefficients (goes with old sections): 
         if current_section == 6:
             mu = 1.1
         if current_section == 7:
             mu = 1.5
         if current_section == 9:
-            mu = 1.5
+            mu = 1.5'''
         target_speed = math.sqrt(mu*9.81*radius) * 3.6
         return max(20, min(target_speed, self.max_speed))  # clamp between 20 and max_speed
 

@@ -39,7 +39,8 @@ class RoarCompetitionSolution:
         occupancy_map_sensor : roar_py_interface.RoarPyOccupancyMapSensor = None,
         collision_sensor : roar_py_interface.RoarPyCollisionSensor = None,
     ) -> None:
-        self.maneuverable_waypoints = maneuverable_waypoints
+        # self.maneuverable_waypoints = maneuverable_waypoints
+        self.maneuverable_waypoints = self.modified_points(maneuverable_waypoints)
         self.vehicle = vehicle
         self.camera_sensor = camera_sensor
         self.location_sensor = location_sensor
@@ -74,6 +75,43 @@ class RoarCompetitionSolution:
             self.maneuverable_waypoints
         )
 
+    # def modified_points(self, waypoints):
+    #     new_points = []
+    #     for ind, waypoint in enumerate(waypoints):
+    #         if ind == 1965:
+    #             new_points.append(self.new_x(waypoint, -151))
+    #         elif ind == 1966:
+    #             new_points.append(self.new_x(waypoint, -153))
+    #         elif ind == 1967:
+    #             new_points.append(self.new_x(waypoint, -155))
+    #         else:
+    #             new_points.append(waypoint)
+    #     return new_points
+
+    def modified_points(self, waypoints):
+        new_points = []
+        for ind, waypoint in enumerate(waypoints):
+            if ind >= 1946 and ind <= 1995:
+                new_points.append(self.new_point(waypoint, self.new_y(waypoint.location[0])))
+            else:
+                new_points.append(waypoint)
+        return new_points
+
+    def new_x(self, waypoint, new_x):
+        new_location = np.array([new_x, waypoint.location[1], waypoint.location[2]])
+        return roar_py_interface.RoarPyWaypoint(location=new_location, 
+                                                roll_pitch_yaw=waypoint.roll_pitch_yaw, 
+                                                lane_width=waypoint.lane_width)
+    def new_point(self, waypoint, new_y):
+        new_location = np.array([waypoint.location[0], new_y, waypoint.location[2]])
+        return roar_py_interface.RoarPyWaypoint(location=new_location, 
+                                                roll_pitch_yaw=waypoint.roll_pitch_yaw, 
+                                                lane_width=waypoint.lane_width)
+    def new_y(self, x):
+        a=0.000322627
+        b=2.73377
+        y = a * ( (abs(x + 206))**b ) - 1063.5
+        return y
 
     async def step(
         self
@@ -111,6 +149,7 @@ class RoarCompetitionSolution:
 
         new_waypoint_index = self.get_lookahead_index(current_speed_kmh)
         waypoint_to_follow = self.next_waypoint_smooth(current_speed_kmh)
+        #waypoint_to_follow = self.maneuverable_waypoints[new_waypoint_index]
 
         # Proportional controller to steer the vehicle
         steer_control = self.lat_pid_controller.run(
@@ -252,10 +291,10 @@ class RoarCompetitionSolution:
         lookahead_value = self.get_lookahead_value(current_speed)
         num_points = lookahead_value * 2
         
-        if self.current_section <= 4:
+        if self.current_section in []:
             num_points = lookahead_value
-        if self.current_section >= 6:
-            num_points = lookahead_value // 2
+        if self.current_section in [8,9]:
+             num_points = lookahead_value // 2
         start_index_for_avg = (next_waypoint_index - (num_points // 2)) % len(self.maneuverable_waypoints)
 
         next_waypoint = self.maneuverable_waypoints[next_waypoint_index]
@@ -269,7 +308,9 @@ class RoarCompetitionSolution:
             new_location = location_sum / num_points
             shift_distance = np.linalg.norm(next_location - new_location)
             max_shift_distance = 2.0
-            if self.current_section == 1:
+            if self.current_section in [1,2]:
+                max_shift_distance = 0.15
+            if self.current_section in [8,9,10,11,12]:
                 max_shift_distance = 0.2
             if shift_distance > max_shift_distance:
                 uv = (new_location - next_location) / shift_distance
@@ -288,7 +329,7 @@ class RoarCompetitionSolution:
             target_waypoint =  self.maneuverable_waypoints[next_waypoint_index]
 
         return target_waypoint
-    
+
 class LatPIDController():
     def __init__(self, config: dict, dt: float = 0.05):
         self.config = config
@@ -613,17 +654,17 @@ class ThrottleController():
         #old section indeces = [0, 277, 554, 831, 1108, 1662, 1939, 2216, 2493]
         mu = 1.0 #TODO: set mu for each section
         if current_section == 0:
-            mu = 2.0
+            mu = 2.2
         if current_section == 1:
-            mu = 2.0
+            mu = 2.18
         if current_section == 2:
             mu = 2.0
         if current_section == 3:
-            mu = 2.0
+            mu = 2.2
         if current_section == 4:
-            mu = 2.0
+            mu = 2.2
         if current_section == 5:
-            mu = 2.0
+            mu = 2.2
         if current_section == 6:
             mu = 2.0
         if current_section == 7:
@@ -633,11 +674,11 @@ class ThrottleController():
         if current_section == 9:
             mu = 1.5
         if current_section == 10:
-            mu = 2.0
+            mu = 2.2
         if current_section == 11:
-            mu = 1.5
+            mu = 1.6
         if current_section == 12:
-            mu = 1.2
+            mu = 1.4
         '''old friction coefficients (goes with old sections): 
         if current_section == 6:
             mu = 1.1

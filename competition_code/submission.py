@@ -78,24 +78,82 @@ class RoarCompetitionSolution:
     # def modified_points(self, waypoints):
     #     new_points = []
     #     for ind, waypoint in enumerate(waypoints):
-    #         if ind == 1965:
+    #         if ind == 1964:
     #             new_points.append(self.new_x(waypoint, -151))
-    #         elif ind == 1966:
+    #         elif ind == 1965:
     #             new_points.append(self.new_x(waypoint, -153))
-    #         elif ind == 1967:
+    #         elif ind == 1966:
     #             new_points.append(self.new_x(waypoint, -155))
     #         else:
     #             new_points.append(waypoint)
     #     return new_points
+        
+    def modified_points_bad(self, waypoints):
+        end_ind = 1964
+        num_points = 50
+        start_ind = end_ind - num_points
+        shift_vector = np.array([0.5, 0, 0])
+        step_vector = shift_vector / num_points
 
-    def modified_points(self, waypoints):
+        s2 = 1965
+        num_points2 = 150
+        shift_vector2 = np.array([0, 2.0, 0])
+
+
         new_points = []
         for ind, waypoint in enumerate(waypoints):
-            if ind >= 1946 and ind <= 1995:
-                new_points.append(self.new_point(waypoint, self.new_y(waypoint.location[0])))
-            else:
-                new_points.append(waypoint)
+            p = waypoint
+            if ind >= start_ind and ind < end_ind:
+                p = self.point_plus_vec(p, step_vector * (ind - start_ind))
+            if ind >= s2 and ind < s2 + num_points2:
+                 p = self.point_plus_vec(p, shift_vector2)
+            new_points.append(p)
         return new_points
+
+    def modified_points(self, waypoints):
+        start_ind = 1920
+        num_points = 100
+        end_ind = start_ind + num_points
+        shift_vector = np.array([2.8, 0, 0])
+        step_vector = shift_vector / num_points
+
+        s2 = 1965
+        num_points2 = 150
+        shift_vector2 = np.array([0, 3.5, 0])
+
+        s3 = 1920
+        num_points3 = 195
+        shift_vector3 = np.array([0.2, 0, 0])
+
+        new_points = []
+        for ind, waypoint in enumerate(waypoints):
+            p = waypoint
+            if ind >= start_ind and ind < end_ind:
+                p = self.point_plus_vec(p, step_vector * (end_ind - ind))
+                # p = self.point_plus_vec(p, step_vector * (end_ind - ind))
+            if ind >= s2 and ind < s2 + num_points2:
+                p = self.point_plus_vec(p, shift_vector2)
+            if ind >= s3 and ind < s3 + num_points3:
+                p = self.point_plus_vec(p, shift_vector3)
+            new_points.append(p)
+        return new_points
+
+    def point_plus_vec(self, waypoint, vector):
+        new_location = waypoint.location + vector
+        # new_location = np.array([waypoint.location[0], new_y, waypoint.location[2]])
+        return roar_py_interface.RoarPyWaypoint(location=new_location,
+                                                roll_pitch_yaw=waypoint.roll_pitch_yaw,
+                                                lane_width=waypoint.lane_width)
+
+
+    # def modified_points(self, waypoints):
+    #     new_points = []
+    #     for ind, waypoint in enumerate(waypoints):
+    #         if ind >= 1946 and ind <= 1995:
+    #             new_points.append(self.new_point(waypoint, self.new_y(waypoint.location[0])))
+    #         else:
+    #             new_points.append(waypoint)
+    #     return new_points
 
     def new_x(self, waypoint, new_x):
         new_location = np.array([new_x, waypoint.location[1], waypoint.location[2]])
@@ -294,7 +352,8 @@ class RoarCompetitionSolution:
         if self.current_section in []:
             num_points = lookahead_value
         if self.current_section in [8,9]:
-             num_points = lookahead_value // 2
+            #num_points = lookahead_value // 2
+            num_points = lookahead_value
         start_index_for_avg = (next_waypoint_index - (num_points // 2)) % len(self.maneuverable_waypoints)
 
         next_waypoint = self.maneuverable_waypoints[next_waypoint_index]
@@ -656,9 +715,9 @@ class ThrottleController():
         if current_section == 0:
             mu = 2.2
         if current_section == 1:
-            mu = 2.18
+            mu = 2.15
         if current_section == 2:
-            mu = 2.0
+            mu = 1.9
         if current_section == 3:
             mu = 2.2
         if current_section == 4:
@@ -670,13 +729,13 @@ class ThrottleController():
         if current_section == 7:
             mu = 1.3
         if current_section == 8:
-            mu = 1.2
+            mu = 2.15
         if current_section == 9:
-            mu = 1.5
+            mu = 2.15
         if current_section == 10:
             mu = 2.2
         if current_section == 11:
-            mu = 1.6
+            mu = 1.5
         if current_section == 12:
             mu = 1.4
         '''old friction coefficients (goes with old sections): 

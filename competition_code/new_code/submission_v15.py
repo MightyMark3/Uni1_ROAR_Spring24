@@ -281,10 +281,9 @@ class RoarCompetitionSolution:
             if speed < speed_upper_bound:
               num_waypoints = num_points
               break
-            
-            if self.current_section in [6,7]:
-                num_waypoints = num_points*3//2
-
+        # if self.current_section in [12]:
+        #     num_waypoints = 6
+            # num_waypoints = num_waypoints // 2
         return num_waypoints
 
     def get_lookahead_index(self, speed):
@@ -400,15 +399,13 @@ class RoarCompetitionSolution:
             shift_distance = np.linalg.norm(next_location - new_location)
             max_shift_distance = 2.0
             if self.current_section in [1,2]:
-                max_shift_distance = 0.2
-            if self.current_section in [6, 7]:
-                max_shift_distance = 1.0
+                max_shift_distance = 0.15
             if self.current_section in [8,9]:
-                max_shift_distance = 2.8
+                max_shift_distance = 2.0
             if self.current_section in [10,11]:
                 max_shift_distance = 0.2
             if self.current_section in [12]:
-                max_shift_distance = 0.4
+                max_shift_distance = 0.2
             if shift_distance > max_shift_distance:
                 uv = (new_location - next_location) / shift_distance
                 new_location = next_location + uv*max_shift_distance
@@ -578,9 +575,9 @@ class ThrottleController():
         r2 = self.get_radius(wp[self.mid_index : self.mid_index + 3])
         r3 = self.get_radius(wp[self.far_index : self.far_index + 3])
 
-        target_speed1 = self.get_target_speed(r1, current_section, current_speed)
-        target_speed2 = self.get_target_speed(r2, current_section, current_speed)
-        target_speed3 = self.get_target_speed(r3, current_section, current_speed)
+        target_speed1 = self.get_target_speed(r1, current_section)
+        target_speed2 = self.get_target_speed(r2, current_section)
+        target_speed3 = self.get_target_speed(r3, current_section)
 
         close_distance = self.target_distance[self.close_index] + 3
         mid_distance = self.target_distance[self.mid_index]
@@ -593,7 +590,7 @@ class ThrottleController():
         if current_speed > 100:
             # at high speed use larger spacing between points to look further ahead and detect wide turns.
             r4 = self.get_radius([wp[self.close_index], wp[self.close_index+3], wp[self.close_index+6]])
-            target_speed4 = self.get_target_speed(r4, current_section, current_speed)
+            target_speed4 = self.get_target_speed(r4, current_section)
             speed_data.append(self.speed_for_turn(close_distance, target_speed4, current_speed))
 
         update = self.select_speed(speed_data)
@@ -761,7 +758,7 @@ class ThrottleController():
         radius = (len_side_1 * len_side_2 * len_side_3) / (4 * math.sqrt(area_squared))
         return radius
     
-    def get_target_speed(self, radius: float, current_section, current_speed):
+    def get_target_speed(self, radius: float, current_section):
         if radius >= self.max_radius:
             return self.max_speed
         #self.section_indeces = [198, 438, 547, 691, 803, 884, 1287, 1508, 1854, 1968, 2264, 2662, 2770]
@@ -770,31 +767,29 @@ class ThrottleController():
         if current_section == 0:
             mu = 2.8
         if current_section == 1:
-            mu = 2.0
+            mu = 2.12
         if current_section == 2:
-            mu = 1.75
+            mu = 1.7
         if current_section == 3:
             mu = 2.6
         if current_section == 4:
             mu = 3
         if current_section == 5:
-            mu = 3.5
+            mu = 3.2
         if current_section == 6:
-            mu = 2.0
+            mu = 2.05
         if current_section == 7:
-            mu = 1.3
-        # if current_section == 7 and current_speed<150:
-        #     mu = 1.8
+            mu = 1.2
         if current_section == 8:
-            mu = 3.7
+            mu = 3.3
         if current_section == 9:
-            mu = 3.6
+            mu = 3.3
         if current_section == 10:
             mu = 3.8
         if current_section == 11:
-            mu = 1.9
+            mu = 2.0
         if current_section == 12:
-            mu = 1.9
+            mu = 2.0
         '''old friction coefficients (goes with old sections): 
         if current_section == 6:
             mu = 1.1
@@ -1027,6 +1022,7 @@ SEC_8_WAYPOINTS = [
 ]
 
 SEC_12_WAYPOINTS = [
+new_x_y(-343.2425231933594, 57.59950256347656),
  new_x_y(-343.2425231933594, 57.59950256347656),
   new_x_y(-343.2458117675781, 59.59837341308594),
   new_x_y(-343.24910034179686, 61.59727478027344),
@@ -1211,55 +1207,48 @@ SEC_12_WAYPOINTS = [
   new_x_y(-276.68802097838517, 375.31011899439363),
   new_x_y(-277.18065454720767, 377.334356438785),
   new_x_y(-277.6927907782895, 379.3537561495886),
-  new_x_y(-278.21466064453125, 381.3706665039063),
-  new_x_y(-278.75653076171875, 383.2958679199219),
-  new_x_y(-279.324462890625, 385.2135009765625),
-  new_x_y(-279.9183959960937, 387.1232604980469),
-  new_x_y(-280.5381774902344, 389.0247802734375),
-  new_x_y(-281.29998779296875, 391.6999816894531),
-  new_x_y(-282.1494140625, 393.758056640625)
-]
+  new_x_y(-278.21466064453125, 381.3706665039063)
+  ]
 
-
-# Section 0: 319
+# Section 0: 320
 # Section 1: 175
-# Section 2: 114
+# Section 2: 113
+# Section 3: 147
+# Section 4: 124
+# Section 5: 76
+# Section 6: 315
+# Section 7: 208
+# Section 8: 253
+# Section 9: 78
+# Section 10: 240
+# Section 11: 187
+# Section 12: 164
+# Section 0: 209
+# Section 1: 162
+# Section 2: 112
 # Section 3: 146
+# Section 4: 124
+# Section 5: 77
+# Section 6: 316
+# Section 7: 211
+# Section 8: 253
+# Section 9: 78
+# Section 10: 239
+# Section 11: 188
+# Section 12: 162
+# Section 0: 213
+# Section 1: 162
+# Section 2: 112
+# Section 3: 145
 # Section 4: 124
 # Section 5: 77
 # Section 6: 313
-# Section 7: 211
-# Section 8: 254
-# Section 9: 75
-# Section 10: 238
-# Section 11: 189
-# Section 12: 161
-# Section 0: 207
-# Section 1: 162
-# Section 2: 112
-# Section 3: 146
-# Section 4: 124
-# Section 5: 75
-# Section 6: 315
 # Section 7: 213
-# Section 8: 252
-# Section 9: 75
-# Section 10: 241
+# Section 8: 253
+# Section 9: 77
+# Section 10: 240
 # Section 11: 188
-# Section 12: 163
-# Section 0: 207
-# Section 1: 162
-# Section 2: 112
-# Section 3: 146
-# Section 4: 124
-# Section 5: 77
-# Section 6: 314
-# Section 7: 212
-# Section 8: 252
-# Section 9: 75
-# Section 10: 239
-# Section 11: 188
-# Section 12: 164
+# Section 12: 162
 # end of the loop
 # done
-# Solution finished in 347.2500000000506 seconds
+# Solution finished in 348.1000000000451 seconds

@@ -281,10 +281,9 @@ class RoarCompetitionSolution:
             if speed < speed_upper_bound:
               num_waypoints = num_points
               break
-            
-            if self.current_section in [6,7]:
-                num_waypoints = num_points*3//2
-
+        # if self.current_section in [12]:
+        #     num_waypoints = 8
+            # num_waypoints = num_waypoints // 2
         return num_waypoints
 
     def get_lookahead_index(self, speed):
@@ -578,9 +577,9 @@ class ThrottleController():
         r2 = self.get_radius(wp[self.mid_index : self.mid_index + 3])
         r3 = self.get_radius(wp[self.far_index : self.far_index + 3])
 
-        target_speed1 = self.get_target_speed(r1, current_section, current_speed)
-        target_speed2 = self.get_target_speed(r2, current_section, current_speed)
-        target_speed3 = self.get_target_speed(r3, current_section, current_speed)
+        target_speed1 = self.get_target_speed(r1, current_section)
+        target_speed2 = self.get_target_speed(r2, current_section)
+        target_speed3 = self.get_target_speed(r3, current_section)
 
         close_distance = self.target_distance[self.close_index] + 3
         mid_distance = self.target_distance[self.mid_index]
@@ -593,7 +592,7 @@ class ThrottleController():
         if current_speed > 100:
             # at high speed use larger spacing between points to look further ahead and detect wide turns.
             r4 = self.get_radius([wp[self.close_index], wp[self.close_index+3], wp[self.close_index+6]])
-            target_speed4 = self.get_target_speed(r4, current_section, current_speed)
+            target_speed4 = self.get_target_speed(r4, current_section)
             speed_data.append(self.speed_for_turn(close_distance, target_speed4, current_speed))
 
         update = self.select_speed(speed_data)
@@ -761,7 +760,7 @@ class ThrottleController():
         radius = (len_side_1 * len_side_2 * len_side_3) / (4 * math.sqrt(area_squared))
         return radius
     
-    def get_target_speed(self, radius: float, current_section, current_speed):
+    def get_target_speed(self, radius: float, current_section):
         if radius >= self.max_radius:
             return self.max_speed
         #self.section_indeces = [198, 438, 547, 691, 803, 884, 1287, 1508, 1854, 1968, 2264, 2662, 2770]
@@ -770,31 +769,29 @@ class ThrottleController():
         if current_section == 0:
             mu = 2.8
         if current_section == 1:
-            mu = 2.0
+            mu = 2.
         if current_section == 2:
-            mu = 1.75
+            mu = 1.7
         if current_section == 3:
             mu = 2.6
         if current_section == 4:
             mu = 3
         if current_section == 5:
-            mu = 3.5
+            mu = 3.2
         if current_section == 6:
-            mu = 2.0
+            mu = 2.05
         if current_section == 7:
-            mu = 1.3
-        # if current_section == 7 and current_speed<150:
-        #     mu = 1.8
+            mu = 1.2
         if current_section == 8:
             mu = 3.7
         if current_section == 9:
-            mu = 3.6
+            mu = 3.7
         if current_section == 10:
             mu = 3.8
         if current_section == 11:
-            mu = 1.9
+            mu = 2.2
         if current_section == 12:
-            mu = 1.9
+            mu = 2.25
         '''old friction coefficients (goes with old sections): 
         if current_section == 6:
             mu = 1.1

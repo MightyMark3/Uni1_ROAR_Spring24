@@ -47,18 +47,12 @@ class RoarCompetitionSolution:
     ) -> None:
         # self.maneuverable_waypoints = maneuverable_waypoints[:1962] + maneuverable_waypoints[1967:]
         # startInd = 1953
-        startInd_8 = 1800
-        endInd_8 = 2006
-        startInd_12 = 2586
+        startInd = 1800
+        endInd = 2006
         # endInd = 1967
         # endInd = startInd+len(NEW_WAYPOINTS)
-        # self.maneuverable_waypoints = \
-        #     maneuverable_waypoints[:startInd_8] + SEC_8_WAYPOINTS \
-        #         + maneuverable_waypoints[endInd_8:] 
         self.maneuverable_waypoints = \
-            maneuverable_waypoints[:startInd_8] + SEC_8_WAYPOINTS \
-                + maneuverable_waypoints[endInd_8:startInd_12] \
-                + SEC_12_WAYPOINTS
+            maneuverable_waypoints[:startInd] + NEW_WAYPOINTS + maneuverable_waypoints[endInd:]
         # self.maneuverable_waypoints = self.modified_points(maneuverable_waypoints)
         self.vehicle = vehicle
         self.camera_sensor = camera_sensor
@@ -281,10 +275,9 @@ class RoarCompetitionSolution:
             if speed < speed_upper_bound:
               num_waypoints = num_points
               break
-            
-            if self.current_section in [6,7]:
-                num_waypoints = num_points*3//2
-
+        # if self.current_section in [8, 9]:
+        #     # num_waypoints = num_waypoints // 2
+        #     num_waypoints = 3 + (num_waypoints // 2)
         return num_waypoints
 
     def get_lookahead_index(self, speed):
@@ -379,8 +372,8 @@ class RoarCompetitionSolution:
         lookahead_value = self.get_lookahead_value(current_speed)
         num_points = lookahead_value * 2
         
-        # if self.current_section in [12]:
-        #     num_points = lookahead_value
+        if self.current_section in []:
+            num_points = lookahead_value
         if self.current_section in [8,9]:
             # num_points = lookahead_value // 2
             num_points = lookahead_value * 2
@@ -400,15 +393,11 @@ class RoarCompetitionSolution:
             shift_distance = np.linalg.norm(next_location - new_location)
             max_shift_distance = 2.0
             if self.current_section in [1,2]:
-                max_shift_distance = 0.2
-            if self.current_section in [6, 7]:
-                max_shift_distance = 1.0
+                max_shift_distance = 0.15
             if self.current_section in [8,9]:
-                max_shift_distance = 2.8
-            if self.current_section in [10,11]:
+                max_shift_distance = 2.0
+            if self.current_section in [10,11,12]:
                 max_shift_distance = 0.2
-            if self.current_section in [12]:
-                max_shift_distance = 0.4
             if shift_distance > max_shift_distance:
                 uv = (new_location - next_location) / shift_distance
                 new_location = next_location + uv*max_shift_distance
@@ -498,15 +487,13 @@ class LatPIDController():
     
     def find_k_values(self, cur_section, current_speed: float, config: dict) -> np.array:
         k_p, k_d, k_i = 1, 0, 0
-        if cur_section in [8, 9, 10, 11]:
+        if cur_section in [8, 9, 10]:
         #   return np.array([0.3, 0.1, 0.25]) # ok for mu=1.2
         #   return np.array([0.2, 0.03, 0.15])
         #   return np.array([0.3, 0.06, 0.03]) # ok for mu=1.8
         #   return np.array([0.42, 0.05, 0.02]) # ok for mu=2.0
         #   return np.array([0.45, 0.05, 0.02]) # ok for mu=2.2
           return np.array([0.58, 0.05, 0.02]) # 
-        # if cur_section in [12]:
-        #   return np.array([0.4, 0.05, 0.02]) # 
 
         for speed_upper_bound, kvalues in config.items():
             speed_upper_bound = float(speed_upper_bound)
@@ -578,9 +565,9 @@ class ThrottleController():
         r2 = self.get_radius(wp[self.mid_index : self.mid_index + 3])
         r3 = self.get_radius(wp[self.far_index : self.far_index + 3])
 
-        target_speed1 = self.get_target_speed(r1, current_section, current_speed)
-        target_speed2 = self.get_target_speed(r2, current_section, current_speed)
-        target_speed3 = self.get_target_speed(r3, current_section, current_speed)
+        target_speed1 = self.get_target_speed(r1, current_section)
+        target_speed2 = self.get_target_speed(r2, current_section)
+        target_speed3 = self.get_target_speed(r3, current_section)
 
         close_distance = self.target_distance[self.close_index] + 3
         mid_distance = self.target_distance[self.mid_index]
@@ -593,7 +580,7 @@ class ThrottleController():
         if current_speed > 100:
             # at high speed use larger spacing between points to look further ahead and detect wide turns.
             r4 = self.get_radius([wp[self.close_index], wp[self.close_index+3], wp[self.close_index+6]])
-            target_speed4 = self.get_target_speed(r4, current_section, current_speed)
+            target_speed4 = self.get_target_speed(r4, current_section)
             speed_data.append(self.speed_for_turn(close_distance, target_speed4, current_speed))
 
         update = self.select_speed(speed_data)
@@ -761,7 +748,7 @@ class ThrottleController():
         radius = (len_side_1 * len_side_2 * len_side_3) / (4 * math.sqrt(area_squared))
         return radius
     
-    def get_target_speed(self, radius: float, current_section, current_speed):
+    def get_target_speed(self, radius: float, current_section):
         if radius >= self.max_radius:
             return self.max_speed
         #self.section_indeces = [198, 438, 547, 691, 803, 884, 1287, 1508, 1854, 1968, 2264, 2662, 2770]
@@ -770,7 +757,7 @@ class ThrottleController():
         if current_section == 0:
             mu = 2.8
         if current_section == 1:
-            mu = 2.0
+            mu = 2.12
         if current_section == 2:
             mu = 1.75
         if current_section == 3:
@@ -778,23 +765,21 @@ class ThrottleController():
         if current_section == 4:
             mu = 3
         if current_section == 5:
-            mu = 3.5
+            mu = 3
         if current_section == 6:
-            mu = 2.0
+            mu = 2
         if current_section == 7:
-            mu = 1.3
-        # if current_section == 7 and current_speed<150:
-        #     mu = 1.8
+            mu = 1.15
         if current_section == 8:
-            mu = 3.7
+            mu = 3.5
         if current_section == 9:
-            mu = 3.6
+            mu = 3.7
         if current_section == 10:
             mu = 3.8
         if current_section == 11:
-            mu = 1.9
+            mu = 1.7
         if current_section == 12:
-            mu = 1.9
+            mu = 1.7
         '''old friction coefficients (goes with old sections): 
         if current_section == 6:
             mu = 1.1
@@ -816,8 +801,8 @@ class ThrottleController():
             print(text)
             self.debug_strings.append(text)
 
-SEC_8_WAYPOINTS = [
-  new_x_y(-104.11528778076172, -726.1124877929688),
+NEW_WAYPOINTS = [
+new_x_y(-104.11528778076172, -726.1124877929688),
   new_x_y(-104.1638900756836, -728.1100463867188),
   new_x_y(-104.21249237060549, -730.1076049804688),
   new_x_y(-104.26109466552734, -732.1051635742188),
@@ -1026,240 +1011,45 @@ SEC_8_WAYPOINTS = [
   new_x_y(-229.30372619628903, -1061.1782614004462)
 ]
 
-SEC_12_WAYPOINTS = [
- new_x_y(-343.2425231933594, 57.59950256347656),
-  new_x_y(-343.2458117675781, 59.59837341308594),
-  new_x_y(-343.24910034179686, 61.59727478027344),
-  new_x_y(-343.2523889160156, 63.59614562988281),
-  new_x_y(-343.2556469726562, 65.59504699707031),
-  new_x_y(-343.258935546875, 67.59391784667969),
-  new_x_y(-343.2622241210937, 69.59281921386719),
-  new_x_y(-343.2655126953125, 71.59169006347656),
-  new_x_y(-343.26880126953125, 73.59059143066406),
-  new_x_y(-343.27208984375, 75.58946228027344),
-  new_x_y(-343.27537841796874, 77.58836364746094),
-  new_x_y(-343.2786669921875, 79.58723449707031),
-  new_x_y(-343.2819555664062, 81.58613586425781),
-  new_x_y(-343.2852136230469, 83.58500671386719),
-  new_x_y(-343.28850219726564, 85.58390808105469),
-  new_x_y(-343.2917907714844, 87.58277893066406),
-  new_x_y(-343.29507934570313, 89.58168029785156),
-  new_x_y(-343.2983679199219, 91.58058166503906),
-  new_x_y(-343.3016564941406, 93.57945251464844),
-  new_x_y(-343.30494506835936, 95.57835388183594),
-  new_x_y(-343.3082336425781, 97.57722473144533),
-  new_x_y(-343.3115222167969, 99.5761260986328),
-  new_x_y(-343.3147802734375, 101.5749969482422),
-  new_x_y(-343.31806884765626, 103.57389831542967),
-  new_x_y(-343.321357421875, 105.57276916503906),
-  new_x_y(-343.3246459960937, 107.57167053222656),
-  new_x_y(-343.3279345703125, 109.57054138183594),
-  new_x_y(-343.33122314453124, 111.56944274902344),
-  new_x_y(-343.33451171875, 113.5683135986328),
-  new_x_y(-343.3378002929687, 115.56721496582033),
-  new_x_y(-343.3410888671875, 117.56608581542967),
-  new_x_y(-343.34434692382814, 119.5649871826172),
-  new_x_y(-343.3476354980469, 121.56385803222656),
-  new_x_y(-343.3509240722656, 123.56275939941406),
-  new_x_y(-343.35421264648437, 125.56166076660156),
-  new_x_y(-343.3575012207031, 127.56053161621094),
-  new_x_y(-343.36078979492186, 129.55943298339844),
-  new_x_y(-343.3640783691406, 131.5583038330078),
-  new_x_y(-343.3673669433594, 133.5572052001953),
-  new_x_y(-343.370625, 135.5560760498047),
-  new_x_y(-343.37391357421876, 137.5549774169922),
-  new_x_y(-343.3072021484375, 139.55384826660156),
-  new_x_y(-343.24049072265626, 141.55274963378906),
-  new_x_y(-343.173779296875, 143.55162048339844),
-  new_x_y(-343.1070678710937, 145.55052185058594),
-  new_x_y(-343.0403564453125, 147.5493927001953),
-  new_x_y(-342.97364501953126, 149.5482940673828),
-  new_x_y(-342.90693359375, 151.5471649169922),
-  new_x_y(-342.84019165039064, 153.5460662841797),
-  new_x_y(-342.7734802246094, 155.54493713378906),
-  new_x_y(-342.70676879882814, 157.54383850097656),
-  new_x_y(-342.6400573730469, 159.54270935058594),
-  new_x_y(-342.57334594726564, 161.54161071777344),
-  new_x_y(-342.5066345214844, 163.54051208496094),
-  new_x_y(-342.43992309570314, 165.5393829345703),
-  new_x_y(-342.3732116699219, 167.5382843017578),
-  new_x_y(-342.30650024414064, 169.5371551513672),
-  new_x_y(-342.23975830078126, 171.5360565185547),
-  new_x_y(-342.173046875, 173.53492736816406),
-  new_x_y(-342.10633544921876, 175.53382873535156),
-  new_x_y(-342.0396240234375, 177.53269958496094),
-  new_x_y(-341.97291259765626, 179.53160095214844),
-  new_x_y(-341.906201171875, 181.5304718017578),
-  new_x_y(-341.8394897460937, 183.5293731689453),
-  new_x_y(-341.7727783203125, 185.5282440185547),
-  new_x_y(-341.70606689453126, 187.5271453857422),
-  new_x_y(-341.6393249511719, 189.5260162353516),
-  new_x_y(-341.57261352539064, 191.52491760253903),
-  new_x_y(-341.5059020996094, 193.52378845214844),
-  new_x_y(-341.43919067382814, 195.52268981933597),
-  new_x_y(-341.3724792480469, 197.52159118652344),
-  new_x_y(-341.30576782226564, 199.5204620361328),
-  new_x_y(-341.2390563964844, 201.5193634033203),
-  new_x_y(-341.17234497070314, 203.5182342529297),
-  new_x_y(-341.1056335449219, 205.5171356201172),
-  new_x_y(-341.0388916015625, 207.51600646972656),
-  new_x_y(-340.97218017578126, 209.5149078369141),
-  new_x_y(-340.90546875, 211.51377868652344),
-  new_x_y(-340.83875732421876, 213.5126800537109),
-  new_x_y(-340.7720458984375, 215.5115509033203),
-  new_x_y(-340.70533447265626, 217.5104522705078),
-  new_x_y(-340.638623046875, 219.5093231201172),
-  new_x_y(-340.5719116210937, 221.5082244873047),
-  new_x_y(-340.5052001953125, 223.5070953369141),
-  new_x_y(-340.43845825195314, 225.5059967041016),
-  new_x_y(-340.3717468261719, 227.5048675537109),
-  new_x_y(-340.30503540039064, 229.50376892089844),
-  new_x_y(-340.2383239746094, 231.50267028808597),
-  new_x_y(-340.17161254882814, 233.5015411376953),
-  new_x_y(-340.1049011230469, 235.5004425048828),
-  new_x_y(-340.03818969726564, 237.4993133544922),
-  new_x_y(-339.9714782714844, 239.4982147216797),
-  new_x_y(-339.90476684570314, 241.49708557128903),
-  new_x_y(-339.8380249023437, 243.49598693847656),
-  new_x_y(-339.7713134765625, 245.49485778808597),
-  new_x_y(-339.70460205078126, 247.49375915527344),
-  new_x_y(-339.637890625, 249.4926300048828),
-  new_x_y(-339.57117919921876, 251.4915313720703),
-  new_x_y(-339.5044677734375, 253.4904022216797),
-  new_x_y(-339.43775634765626, 255.4893035888672),
-  new_x_y(-339.371044921875, 257.4881591796875),
-  new_x_y(-339.3043334960937, 259.487060546875),
-  new_x_y(-339.2375915527344, 261.4859619140625),
-  new_x_y(-339.17088012695314, 263.48486328125),
-  new_x_y(-339.1041687011719, 265.48370361328125),
-  new_x_y(-339.03745727539064, 267.48260498046875),
-  new_x_y(-338.9707458496094, 269.48150634765625),
-  new_x_y(-338.90403442382814, 271.4804077148437),
-  new_x_y(-338.8373229980469, 273.479248046875),
-  new_x_y(-338.77061157226564, 275.4781494140625),
-  new_x_y(-338.70386962890626, 277.47705078125),
-  new_x_y(-338.637158203125, 279.4759521484375),
-  new_x_y(-338.5704467773437, 281.47479248046875),
-  new_x_y(-338.5037353515625, 283.47369384765625),
-  new_x_y(-338.43702392578126, 285.4725952148437),
-  new_x_y(-338.3699462890625, 287.4714660644531),
-  new_x_y(-338.2862670898437, 289.4696960449219),
-  new_x_y(-338.177685546875, 291.4667358398437),
-  new_x_y(-337.74420166015625, 293.4622802734375),
-  new_x_y(-337.561151551239, 295.57938104829776),
-  new_x_y(-337.3687309999671, 297.6956472447914),
-  new_x_y(-337.15758115312997, 299.81011987990416),
-  new_x_y(-336.91836908806914, 301.9215914330887),
-  new_x_y(-336.6418076495959, 304.0284823421357),
-  new_x_y(-336.318683504231, 306.12871865486255),
-  new_x_y(-335.9398960929732, 308.21961161765273),
-  new_x_y(-335.4965100939307, 310.29774031792573),
-  new_x_y(-334.9798238937089, 312.3588389125448),
-  new_x_y(-334.38145639508144, 314.39769046277337),
-  new_x_y(-333.69345423906987, 316.40802995065553),
-  new_x_y(-332.90842117070656, 318.38245965990507),
-  new_x_y(-332.01967080638593, 320.3123807501063),
-  new_x_y(-331.02140344302677, 322.18794551404585),
-  new_x_y(-329.9089067619942, 323.99803545528476),
-  new_x_y(-328.67877930271305, 325.7302709198313),
-  new_x_y(-327.3291743951622, 327.37105851663097),
-  new_x_y(-325.8600608366352, 328.90568291218955),
-  new_x_y(-324.27349497551563, 330.3184497216768),
-  new_x_y(-322.57389703549154, 331.5928860707134),
-  new_x_y(-320.7683225063256, 332.7120048904),
-  new_x_y(-318.86671729112027, 333.6586380505436),
-  new_x_y(-320.55279541015625, 332.7275085449219),
-  new_x_y(-318.68414306640625, 333.4375305175781),
-  new_x_y(-316.74951171875, 333.9408569335937),
-  new_x_y(-314.7717590332031, 334.2315979003906),
-  new_x_y(-312.7741394042969, 334.30633544921875),
-  new_x_y(-310.7801818847656, 334.16412353515625),
-  new_x_y(-308.80279541015625, 333.8643798828125),
-  new_x_y(-307.814697265625, 333.7107238769531),
-  new_x_y(-306.8265686035156, 333.5570678710937),
-  new_x_y(-305.83843994140625, 333.4034423828125),
-  new_x_y(-304.8503112792969, 333.2497863769531),
-  new_x_y(-303.8621826171875, 333.0961303710937),
-  new_x_y(-301.877197265625, 332.8551025390625),
-  new_x_y(-299.88006591796875, 332.75640869140625),
-  new_x_y(-297.8809814453125, 332.8007202148437),
-  new_x_y(-295.8901672363281, 332.9877319335937),
-  new_x_y(-293.9178161621094, 333.3164978027344),
-  new_x_y(-291.9739990234375, 333.7853698730469),
-  new_x_y(-290.0686340332031, 334.3919372558594),
-  new_x_y(-287.36890955136124, 336.4502300627805),
-  new_x_y(-285.53462028523313, 337.43563207506764),
-  new_x_y(-283.8206015721414, 338.6180705351394),
-  new_x_y(-282.2413695974792, 339.97542718319943),
-  new_x_y(-280.8073997467029, 341.48555109159435),
-  new_x_y(-279.52547159263526, 343.12681286859697),
-  new_x_y(-278.3990548588583, 344.87855052651463),
-  new_x_y(-277.4287151511894, 346.7214132459724),
-  new_x_y(-276.6125219176662, 348.63761172938075),
-  new_x_y(-275.9464446647921, 350.61108536348434),
-  new_x_y(-275.424726785363, 352.62759715614163),
-  new_x_y(-275.04022934994344, 354.6747675289015),
-  new_x_y(-274.78473982892007, 356.7420576792383),
-  new_x_y(-274.6492429260599, 358.8207125056033),
-  new_x_y(-274.62415252333415, 360.9036721291275),
-  new_x_y(-274.6995051839878, 362.98545994418),
-  new_x_y(-274.86511677200605, 365.06205396436957),
-  new_x_y(-275.11070456392184, 367.1307470623927),
-  new_x_y(-275.42597779922124, 369.1900005776115),
-  new_x_y(-275.8006999845239, 371.23929471755116),
-  new_x_y(-276.22472647836435, 373.2789782309583),
-  new_x_y(-276.68802097838517, 375.31011899439363),
-  new_x_y(-277.18065454720767, 377.334356438785),
-  new_x_y(-277.6927907782895, 379.3537561495886),
-  new_x_y(-278.21466064453125, 381.3706665039063),
-  new_x_y(-278.75653076171875, 383.2958679199219),
-  new_x_y(-279.324462890625, 385.2135009765625),
-  new_x_y(-279.9183959960937, 387.1232604980469),
-  new_x_y(-280.5381774902344, 389.0247802734375),
-  new_x_y(-281.29998779296875, 391.6999816894531),
-  new_x_y(-282.1494140625, 393.758056640625)
-]
-
-
-# Section 0: 319
+# Section 0: 320
 # Section 1: 175
 # Section 2: 114
-# Section 3: 146
+# Section 3: 145
 # Section 4: 124
-# Section 5: 77
+# Section 5: 76
 # Section 6: 313
-# Section 7: 211
-# Section 8: 254
-# Section 9: 75
-# Section 10: 238
-# Section 11: 189
-# Section 12: 161
-# Section 0: 207
-# Section 1: 162
-# Section 2: 112
-# Section 3: 146
-# Section 4: 124
-# Section 5: 75
-# Section 6: 315
 # Section 7: 213
-# Section 8: 252
-# Section 9: 75
-# Section 10: 241
-# Section 11: 188
-# Section 12: 163
+# Section 8: 254
+# Section 9: 76
+# Section 10: 240
+# Section 11: 189
+# Section 12: 168
 # Section 0: 207
-# Section 1: 162
+# Section 1: 163
 # Section 2: 112
 # Section 3: 146
-# Section 4: 124
-# Section 5: 77
+# Section 4: 125
+# Section 5: 76
 # Section 6: 314
 # Section 7: 212
-# Section 8: 252
-# Section 9: 75
+# Section 8: 254
+# Section 9: 77
+# Section 10: 240
+# Section 11: 189
+# Section 12: 187
+# Section 0: 221
+# Section 1: 164
+# Section 2: 112
+# Section 3: 146
+# Section 4: 123
+# Section 5: 76
+# Section 6: 313
+# Section 7: 211
+# Section 8: 253
+# Section 9: 76
 # Section 10: 239
-# Section 11: 188
-# Section 12: 164
+# Section 11: 189
+# Section 12: 170
 # end of the loop
 # done
-# Solution finished in 347.2500000000506 seconds
+# Solution finished in 350.3000000000456 seconds

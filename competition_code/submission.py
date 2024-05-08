@@ -766,21 +766,21 @@ class ThrottleController():
             return self.max_speed
         #self.section_indeces = [198, 438, 547, 691, 803, 884, 1287, 1508, 1854, 1968, 2264, 2662, 2770]
         #old section indeces = [0, 277, 554, 831, 1108, 1662, 1939, 2216, 2493]
-        mu = 1.0
+        mu = 2.5
         if current_section == 0:
             mu = 2.8
         if current_section == 1:
             mu = 2.0
         if current_section == 2:
-            mu = 1.75
+            mu = 1.95
         if current_section == 3:
-            mu = 2.6
+            mu = 2.75
         if current_section == 4:
-            mu = 3
+            mu = 3.25
         if current_section == 5:
-            mu = 3.5
+            mu = 3.4
         if current_section == 6:
-            mu = 2.0
+            mu = 1.95
         if current_section == 7:
             mu = 1.3
         # if current_section == 7 and current_speed<150:
